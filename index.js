@@ -41,7 +41,6 @@ function encryptServerMessage(data, key) {
 
 const ServerMessageRegex = /^[0-9a-zA-Z+\/]{22}==\|([0-9a-zA-Z+\/]{4})*(([0-9a-zA-Z+\/]{2}==)|([0-9a-zA-Z+\/]{3}=))?$/
 
-
 function decryptServerMessage(data, key) {
     try {
       if (!ServerMessageRegex.test(data)) return {};  
@@ -84,6 +83,24 @@ function broadcastMemberList(ChannelObject) {
     }
 }
 
+function broadcastMemberList_Optimized(ChannelObject) {
+    const MemberList = Object.values(ChannelObject);
+    const MemberIDList = Object.keys(ChannelObject);
+    for (const index in MemberList) {
+        const list = [...MemberIDList];
+        list.splice(index, 1);
+        const ws = MemberList[index];
+
+        ws.send(encryptServerMessage(
+            JSON.stringify({
+                a: "l",
+                p: list
+            }),
+            ws.sharedSecret
+        ))
+    }
+}
+
 function addMemberToChannel(channelUUID, ws) {
     if (!channels[channelUUID]) {
         channels[channelUUID] = {};
@@ -97,7 +114,7 @@ function addMemberToChannel(channelUUID, ws) {
     ws.channelUUID = channelUUID;
     ws.MemberID = MemberID;
 
-    broadcastMemberList(ChannelObject);
+    broadcastMemberList_Optimized(ChannelObject);
 }
 
 function sendToClient(Sender, MemberID, data) {
@@ -128,8 +145,6 @@ wss.on('connection', function connection(ws) {
             ws.send(handshakeMessage);
         } else {
             const json = decryptServerMessage(message.toString(), ws.sharedSecret);
-
-            console.log(json);
 
             switch(json.a) {
                 case "j": {
@@ -167,7 +182,7 @@ wss.on('connection', function connection(ws) {
             if (Object.keys(ChannelObject).length === 0) {
                 delete channels[ws.channelUUID];
             } else {
-                broadcastMemberList(ChannelObject);
+                broadcastMemberList_Optimized(ChannelObject);
             }
         }
     })
